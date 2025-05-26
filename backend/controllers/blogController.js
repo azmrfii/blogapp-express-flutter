@@ -1,3 +1,5 @@
+const fs = require('fs');
+const path = require('path');
 const pool = require('../db');
 
 // GET all blogs
@@ -40,13 +42,14 @@ exports.getBlogById = async (req, res) => {
 exports.createBlog = async (req, res) => {
   const { title, description } = req.body;
   const author_id = req.user.id;
+  const image_url = req.file ? `/uploads/${req.file.filename}` : null;
 
   try {
     const result = await pool.query(`
-      INSERT INTO blogs (title, description, author_id)
-      VALUES ($1, $2, $3)
+      INSERT INTO blogs (title, description, author_id, image_url)
+      VALUES ($1, $2, $3, $4)
       RETURNING *
-    `, [title, description, author_id]);
+    `, [title, description, author_id, image_url]);
 
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -68,12 +71,24 @@ exports.updateBlog = async (req, res) => {
       return res.status(403).json({ message: 'You are not the author of this blog' });
     }
 
+    let newImageUrl = blog.rows[0].image_url;
+
+    if (req.file) {
+      if (blog.rows[0].image_url) {
+        const oldImagePath = path.join(__dirname, '..', blog.rows[0].image_url);
+        if (fs.existsSync(oldImagePath)) {
+          fs.unlinkSync(oldImagePath);
+        }
+      }
+      newImageUrl = `/uploads/${req.file.filename}`;
+    }
+
     const updated = await pool.query(`
       UPDATE blogs
-      SET title = $1, description = $2
-      WHERE id = $3
+      SET title = $1, description = $2, image_url = $3
+      WHERE id = $4
       RETURNING *
-    `, [title, description, id]);
+    `, [title, description, newImageUrl, id]);
 
     res.json(updated.rows[0]);
   } catch (err) {
@@ -92,6 +107,13 @@ exports.deleteBlog = async (req, res) => {
 
     if (blog.rows[0].author_id !== userId) {
       return res.status(403).json({ message: 'You are not the author of this blog' });
+    }
+
+    if (blog.rows[0].image_url) {
+      const imagePath = path.join(__dirname, '..', blog.rows[0].image_url);
+      if (fs.existsSync(imagePath)) {
+        fs.unlinkSync(imagePath);
+      }
     }
 
     await pool.query('DELETE FROM blogs WHERE id = $1', [id]);
