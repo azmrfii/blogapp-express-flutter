@@ -49,3 +49,8 @@ exports.login = async (req, res) => {
     res.status(500).json({ message: 'Server error' });
   }
 };
+
+exports.logout = (req, res) => {
+  // Logout hanya dilakukan di sisi frontend
+  res.json({ message: 'Logout successful. Please clear token on client side.' });
+};
